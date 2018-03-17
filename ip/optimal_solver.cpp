@@ -6,18 +6,23 @@
 
 namespace angularfreezetag {
 
-bool OptimalSolver::Solve(size_t max_time_s) {
+bool OptimalSolver::Solve(size_t max_time_s)
+{
   cplex_solver_.setParam(IloCplex::TiLim, max_time_s);
   cplex_solver_.setParam(IloCplex::EpInt, 0);
   cplex_solver_.setParam(IloCplex::EpGap, 0);
   cplex_solver_.setParam(IloCplex::EpOpt, 1e-9);
   cplex_solver_.setParam(IloCplex::EpAGap, 0);
 
+  ProhibitInterPointCyclesLazyCallback mycb(cplex_env_, edge_variables_, vertex_variables_, graph_);
+  cplex_solver_.use(&mycb);
+
   auto status = cplex_solver_.solve();
   std::cout << cplex_solver_.getStatus() << std::endl;
   assert(status);
   if (GetLowerBound() == GetObjValue()) {
     while (ProhibitInteriorCyclesOfSolution() > 0 || ProhibitInterPointCycles() > 0) {
+      assert(false); //should all be done by the callback now
       cplex_solver_.solve();
       assert(status);
     }
@@ -29,7 +34,8 @@ bool OptimalSolver::Solve(size_t max_time_s) {
 OptimalSolver::OptimalSolver(const ProblemInstance &instance) : instance_{&instance},
                                                                 graph_{instance.points, instance.start},
                                                                 cplex_model_{cplex_env_},
-                                                                cplex_solver_{cplex_model_} {
+                                                                cplex_solver_{cplex_model_}
+{
   CreateVariables(graph_);
 
   for (const auto &e :graph_.Edges()) {
@@ -54,8 +60,10 @@ OptimalSolver::OptimalSolver(const ProblemInstance &instance) : instance_{&insta
   AddConstraintTransitionLimitationForCycleExclusion();
   AddConstraintsMinMax();
   AddObjectiveMinMakespan();
+
 }
-void OptimalSolver::AddConstraintsMinMax() {
+void OptimalSolver::AddConstraintsMinMax()
+{
   for (const auto &p: graph_.GetPoints()) {
     const auto &point = p.second;
     for (const auto &s: point.GetStartHeadingVertices()) {
@@ -67,13 +75,15 @@ void OptimalSolver::AddConstraintsMinMax() {
     }
   }
 }
-void OptimalSolver::AddObjectiveMinMakespan() {
+void OptimalSolver::AddObjectiveMinMakespan()
+{
   // MIN TIME
   IloExpr obj_expr(cplex_env_);
   obj_expr += time_bound_variable_;
   cplex_model_.add(IloMinimize(cplex_env_, obj_expr));
 }
-void OptimalSolver::AddConstraintInterPointTimeDependency(const IpPoint &point) {
+void OptimalSolver::AddConstraintInterPointTimeDependency(const IpPoint &point)
+{
   //    START >= SUM HEADINGS TO POINT
   assert(point.GetPoint() != instance_->start);
   IloExpr sum{cplex_env_};
@@ -89,7 +99,8 @@ void OptimalSolver::AddConstraintInterPointTimeDependency(const IpPoint &point) 
     cplex_model_.add(start_var >= sum);
   }
 }
-void OptimalSolver::AddConstraintEdgeTimeDependency(const Edge e) {
+void OptimalSolver::AddConstraintEdgeTimeDependency(const Edge e)
+{
   auto target_var = vertex_variables_.at(graph_.GetEdgeTarget(e));
   auto source_var = vertex_variables_.at(graph_.GetEdgeSource(e));
   auto edge_var = edge_variables_.at(e);
@@ -97,7 +108,8 @@ void OptimalSolver::AddConstraintEdgeTimeDependency(const Edge e) {
   // TARGET >= SOURCE+WEIGHT if EDGE selected
   cplex_model_.add(target_var >= source_var + graph_.GetEdgeCost(e) + (edge_var * q - q));
 }
-void OptimalSolver::AddConstraintHasToBeCovered(const IpPoint &point) {
+void OptimalSolver::AddConstraintHasToBeCovered(const IpPoint &point)
+{
   //    ALL EDGES LEADING TO A VERTEX HEADING TO POINT == 1
   IloExpr all_edges{cplex_env_};
   for (const auto &e: graph_.Edges()) {
@@ -112,7 +124,8 @@ void OptimalSolver::AddConstraintHasToBeCovered(const IpPoint &point) {
   }
   cplex_model_.add(all_edges == 1);
 }
-void OptimalSolver::AddConstraintAtMostOneOutEdge(const Vertex v) {
+void OptimalSolver::AddConstraintAtMostOneOutEdge(const Vertex v)
+{
   //TODO probably only necessary for start vertices
   IloExpr out_edges{cplex_env_};
   for (const auto &e: graph_.Edges()) {
@@ -121,7 +134,8 @@ void OptimalSolver::AddConstraintAtMostOneOutEdge(const Vertex v) {
   }
   cplex_model_.add(out_edges <= 1);
 }
-void OptimalSolver::AddConstraintOnlyOutIfIn(const Vertex v) {
+void OptimalSolver::AddConstraintOnlyOutIfIn(const Vertex v)
+{
   //    INCOMING >= OUTGOING
   assert(graph_.GetVertexData(v).IsNeighborHeadingVertex());
 
@@ -133,7 +147,8 @@ void OptimalSolver::AddConstraintOnlyOutIfIn(const Vertex v) {
   }
   cplex_model_.add(sum_in >= sum_out);
 }
-void OptimalSolver::AddConstraintTransitionLimitationForCycleExclusion() {
+void OptimalSolver::AddConstraintTransitionLimitationForCycleExclusion()
+{
   auto n = std::distance(graph_.GetPoints().begin(), graph_.GetPoints().end());
   IloExpr edge_sum{cplex_env_};
   for (const auto &e: graph_.Edges()) {
@@ -141,7 +156,9 @@ void OptimalSolver::AddConstraintTransitionLimitationForCycleExclusion() {
   }
   cplex_model_.add(edge_sum == (n - 1));
 }
-size_t OptimalSolver::ProhibitInterPointCycles() {
+size_t OptimalSolver::ProhibitInterPointCycles()
+{
+  //TODO Delete. Redundant to Callback
   size_t num_cuts = 0;
   std::set<Edge> used_edges;
   for (const auto &p: edge_variables_) {
@@ -174,7 +191,9 @@ size_t OptimalSolver::ProhibitInterPointCycles() {
   }
   return num_cuts;
 }
-size_t OptimalSolver::ProhibitInteriorCyclesOfSolution() {
+size_t OptimalSolver::ProhibitInteriorCyclesOfSolution()
+{
+  //TODO: Delete. Redundant to callback.
   size_t num_cuts = 0;
   std::set<Edge> used_edges;
   for (const auto &p: edge_variables_) {
@@ -205,7 +224,9 @@ size_t OptimalSolver::ProhibitInteriorCyclesOfSolution() {
   }
   return num_cuts;
 }
-void OptimalSolver::CreateVariables(const IpGraph &graph) {
+void OptimalSolver::CreateVariables(const IpGraph &graph)
+{
+  //TODO: Delete. Redundant to callback.
   // Create Vertex Variables
   for (const auto &v: graph.Vertices()) {
     vertex_variables_.insert({v, IloNumVar{this->cplex_env_}});
@@ -220,7 +241,8 @@ void OptimalSolver::CreateVariables(const IpGraph &graph) {
 bool OptimalSolver::RecursiveCollectComponent(Edge start_edge,
                                               Edge current_edge,
                                               std::set<Edge> *used_edges,
-                                              std::vector<Edge> *component) {
+                                              std::vector<Edge> *component)
+{
   assert(used_edges->count(start_edge) == 0); //Remove start edge before starting recursion!
   for (auto e: *used_edges) {
     if (graph_.GetEdgeSource(e) == graph_.GetEdgeTarget(current_edge)) {
@@ -232,4 +254,5 @@ bool OptimalSolver::RecursiveCollectComponent(Edge start_edge,
   }
   return false;
 }
+
 }

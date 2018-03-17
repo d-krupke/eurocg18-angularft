@@ -30,16 +30,18 @@ TEST(OptimalSolver, DegeneratedLineInstance)
 {
   using namespace angularfreezetag;
   auto pi = std::atan(1) * 4;
-  ProblemInstance instance{{PointWithOrientation{{0.0, 0.0}, pi/2},
-                                   PointWithOrientation{{-1.0, 0.0}, 0.0},
-                                   PointWithOrientation{{-2.0, 0.0}, 0.0},
-                                   PointWithOrientation{{1.0, 0.0}, pi},
-                                   PointWithOrientation{{2.0, 0.0}, pi},
-                            }, {0.0, 0.0}};
+  ProblemInstance instance{{PointWithOrientation{{0.0, 0.0}, pi / 2},
+                            PointWithOrientation{{-1.0, 0.0}, 0.0},
+                            PointWithOrientation{{-2.0, 0.0}, 0.0},
+                            PointWithOrientation{{-3.0, 0.0}, 0.0},
+                            PointWithOrientation{{1.0, 0.0}, pi},
+                            PointWithOrientation{{2.0, 0.0}, pi},
+                            PointWithOrientation{{3.0, 0.0}, pi},
+                           }, {0.0, 0.0}};
   OptimalSolver solver{instance};
   solver.Solve();
   auto value = solver.GetObjValue();
-  ASSERT_NEAR(value, pi/2, 0.1);
+  ASSERT_NEAR(value, pi / 2, 0.1);
 }
 
 TEST(OptimalSolver, CplexFoobar)

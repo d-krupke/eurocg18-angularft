@@ -108,7 +108,7 @@ namespace angularfreezetag {
             return boost::get(edge_cost_map, e);
         }
 
-        VertexData GetVertexData(Vertex v) {
+        VertexData GetVertexData(Vertex v) const {
             const auto &vertex_data_map = boost::get(boost::vertex_name, graph_);
             return boost::get(vertex_data_map, v);
         }
